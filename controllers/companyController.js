@@ -1,56 +1,79 @@
 import supabase from "../libs/supabaseClient.js";
+import { v4 as uuidv4 } from "uuid";
 
 // --- Company Profile ---
 export const createCompany = async (req, res) => {
+  const {
+    id,
+    workspace_id,
+
+    // Business info
+    business_name,
+    industry,
+    kra_pin,
+    company_email,
+    company_phone,
+    location,
+
+    // Statutory
+    nssf_employer,
+    shif_employer,
+    housing_levy_employer,
+    helb_employer,
+    // Bank
+    bank_name,
+    branch_name,
+    account_name,
+    account_number,
+  } = req.body;
+
+  const logoFile = req.file;
+
+  if (!business_name) {
+    return res.status(400).json({ error: "Business name is required." });
+  }
+
   try {
-    const {
-      workspace_id,
+    let logoUrl = "";
 
-      // Business info
-      business_name,
-      industry,
-      kra_pin,
-      email,
-      phone,
-      address,
+    // 1. Upload logo to Supabase Storage if a file is provided
+    if (logoFile) {
+      const fileExt = logoFile.originalname.split(".").pop();
+      const fileName = `${workspace_id}/${uuidv4()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from("company-logos")
+        .upload(fileName, logoFile.buffer, { contentType: logoFile.mimetype });
 
-      // Statutory
-      nssf_number,
-      shif_number,
-      housing_levy_number,
-      helb_number,
+      if (uploadError) {
+        console.error("Logo upload error:", uploadError);
+        throw new Error("Failed to upload logo.");
+      }
 
-      // Bank
-      bank_name,
-      bank_branch,
-      account_name,
-      account_number,
-      // Branding
-      logo_url,
-    } = req.body;
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("company-logos").getPublicUrl(fileName);
+
+      logoUrl = publicUrl;
+    }
 
     const payload = {
+      ...(id && { id }),
       workspace_id,
-
       business_name,
       industry,
       kra_pin,
-      email,
-      phone,
-      address,
-
-      nssf_number,
-      shif_number,
-      housing_levy_number,
-      helb_number,
-
+      company_email,
+      company_phone,
+      location,
+      nssf_employer,
+      shif_employer,
+      housing_levy_employer,
+      helb_employer,
       bank_name,
-      bank_branch,
+      branch_name,
       account_name,
       account_number,
-
-      logo_url,
-
+      logo_url: logoUrl || req.body.logo_url,
       status: "PENDING",
     };
 
@@ -59,13 +82,16 @@ export const createCompany = async (req, res) => {
       (key) => payload[key] === undefined && delete payload[key],
     );
 
-    const { data, error } = await supabase
+    const { data, error: insertError } = await supabase
       .from("companies")
-      .insert([payload])
+      .upsert(payload, { onConflict: 'id' })
       .select()
       .single();
 
-    if (error) throw error;
+    if (insertError) {
+      console.error("Company insert error:", insertError);
+      throw new Error("Failed to save company details.");
+    }
 
     res.status(201).json(data);
   } catch (error) {
@@ -84,14 +110,11 @@ export const manageDepartments = {
     res.json(data || []);
   },
   create: async (req, res) => {
-    const payload = {
-    ...req.body,
-    company_id: req.params.companyId,
-  };
+    const { company_id, name } = req.body;
 
     const { data, error } = await supabase
       .from("departments")
-      .insert([payload])
+      .insert([{ company_id, name }])
       .select()
       .single();
     if (error) return res.status(400).json(error);
