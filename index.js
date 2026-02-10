@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import workspaceRouters from './routes/workspaceRoutes.js';
 import companyRoutes from './routes/companyRoutes.js'
 import bankRoutes from './routes/bankRoutes.js';
+import employeesRoutes from './routes/employeesRoutes.js'
 
 dotenv.config();
 
@@ -23,9 +24,10 @@ app.get('/api/ping', (req, res) => {
 app.use('/api', workspaceRouters)
 app.use('/api', bankRoutes)
 app.use('/api/company', companyRoutes)
+app.use('/api/company', employeesRoutes);
 
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Seever is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });

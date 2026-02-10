@@ -19,8 +19,10 @@
     "@supabase/supabase-js": "^2.95.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "multer": "^2.0.2",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5"
   }
 }

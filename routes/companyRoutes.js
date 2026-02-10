@@ -1,4 +1,5 @@
 import express from 'express';
+import supabase from "../libs/supabaseClient.js";
 import verifyToken from '../middleware/verifyToken.js';
 import { createCompany, manageDepartments, manageSubDepartments, manageJobTitles } from '../controllers/companyController.js';
 import multer from "multer";
@@ -16,6 +17,21 @@ router.delete('/departments/:id', verifyToken, manageDepartments.delete);
 
 // Sub-Departments
 router.get('/:companyId/sub-departments', verifyToken, manageSubDepartments.list);
+// routes
+router.get(
+  '/departments/:departmentId/sub-departments',
+  verifyToken,
+  async (req, res) => {
+    const { data, error } = await supabase
+      .from('sub_departments')
+      .select('*')
+      .eq('department_id', req.params.departmentId);
+
+    if (error) return res.status(400).json(error);
+    res.json(data || []);
+  }
+);
+
 router.post('/sub-departments', verifyToken, manageSubDepartments.create);
 
 // Job Titles
