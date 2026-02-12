@@ -1,7 +1,8 @@
 // backend/controllers/employeeController.js
 import supabase from "../libs/supabaseClient.js";
-import { sendEmailService } from "../services/email.js";
-import { dispatchEmail } from "../services/resendService.js";
+import { sendEmailService } from "../services/brevo.js";
+//import { sendEmailService } from "../services/email.js";
+//import { dispatchEmail } from "../services/resendService.js";
 import ExcelJS from "exceljs";
 import pkg from "xlsx";
 import { authorize } from "../utils/authorize.js";
