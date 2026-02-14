@@ -8,6 +8,8 @@ import bankRoutes from './routes/bankRoutes.js';
 import employeesRoutes from './routes/employeesRoutes.js'
 import deductionTypeRoutes from './routes/deductionTypeRoutes.js';
 import allowanceTypeRoutes from './routes/allowanceTypeRoutes.js';
+import companyReviewersRoutes from './routes/companyReviewersRoutes.js';
+import payrollRoutes from './routes/payrollRoutes.js';
 
 dotenv.config();
 
@@ -27,11 +29,13 @@ app.get('/api/ping', (req, res) => {
 app.use('/api', workspaceRouters)
 app.use('/api', bankRoutes)
 
+app.use('/api/company/:companyId', payrollRoutes);
 app.use('/api/company', employeesRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/company', companyUsersRoutes);
 app.use('/api/company', allowanceTypeRoutes);
 app.use('/api/company', deductionTypeRoutes);
+app.use('/api/company', companyReviewersRoutes);
 
 
 

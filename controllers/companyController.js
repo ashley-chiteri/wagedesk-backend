@@ -159,15 +159,32 @@ export const createCompany = async (req, res) => {
         companyRole = "VIEWER";
     }
 
-    const { error: membershipError } = await supabase
+    // 1️ Insert into company_users and RETURN inserted row
+    const { data: companyUser, error: membershipError } = await supabase
       .from("company_users")
       .insert({
         company_id: company.id,
         user_id: userId,
         role: companyRole,
-      });
+      })
+      .select()
+      .single();
 
     if (membershipError) throw membershipError;
+
+    // 2 Automatically make creator Level 1 reviewer
+    // Only if ADMIN or MANAGER
+    if (companyRole === "ADMIN" || companyRole === "MANAGER") {
+      const { error: reviewerError } = await supabase
+        .from("company_reviewers")
+        .insert({
+          company_id: company.id,
+          company_user_id: companyUser.id,
+          reviewer_level: 1,
+        });
+
+      if (reviewerError) throw reviewerError;
+    }
 
     res.status(201).json(data);
   } catch (error) {
@@ -633,15 +650,15 @@ export const manageJobTitles = {
     res.json(data || []);
   },
   create: async (req, res) => {
-     const { company_id, title } = req.body;
+    const { company_id, title } = req.body;
     const userId = req.userId;
 
-     // Check authorization
+    // Check authorization
     const isAuthorized = await checkCompanyAccess(
       company_id,
       userId,
       "ORG_SETTINGS",
-      "can_write"
+      "can_write",
     );
 
     if (!isAuthorized) {
@@ -662,9 +679,9 @@ export const manageJobTitles = {
   update: async (req, res) => {
     const { id } = req.params;
     const { title } = req.body;
-     const userId = req.userId;
+    const userId = req.userId;
 
-     // First get the company_id for this job title
+    // First get the company_id for this job title
     const { data: jobTitle, error: jobError } = await supabase
       .from("job_titles")
       .select("company_id")
@@ -680,7 +697,7 @@ export const manageJobTitles = {
       jobTitle.company_id,
       userId,
       "ORG_SETTINGS",
-      "can_write"
+      "can_write",
     );
 
     if (!isAuthorized) {
@@ -719,7 +736,7 @@ export const manageJobTitles = {
       jobTitle.company_id,
       userId,
       "ORG_SETTINGS",
-      "can_delete"
+      "can_delete",
     );
 
     if (!isAuthorized) {
@@ -728,10 +745,7 @@ export const manageJobTitles = {
       });
     }
 
-    const { error } = await supabase
-      .from("job_titles")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("job_titles").delete().eq("id", id);
 
     if (error) return res.status(400).json(error);
     res.status(204).send();
