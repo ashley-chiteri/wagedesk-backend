@@ -346,15 +346,6 @@ export const updateEmployee = async (req, res) => {
   const validatedDepartmentId =
     employeeData.department_id === "" ? null : employeeData.department_id;
 
-  if (
-    !employeeData.employee_number ||
-    !employeeData.first_name ||
-    !employeeData.last_name ||
-    !employeeData.salary
-  ) {
-    return res.status(400).json({ error: "Required fields are missing." });
-  }
-
   try {
     const isAuthorized = await checkCompanyAccess(
       companyId,
@@ -408,6 +399,153 @@ export const updateEmployee = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// backend/controllers/employeeController.js
+
+export const updateSectionEmployee = async (req, res) => {
+  const { companyId, employeeId } = req.params;
+  const userId = req.userId;
+  const updateData = req.body;
+
+  try {
+    const isAuthorized = await checkCompanyAccess(companyId, userId, "EMPLOYEES", "can_write");
+    if (!isAuthorized) return res.status(403).json({ error: "Unauthorized." });
+
+    // 1. Update main Employee table
+    const { error: empError } = await supabase
+      .from("employees")
+      .update({
+        employee_number: updateData.employee_number,
+        first_name: updateData.first_name,
+        middle_name: updateData.middle_name,
+        last_name: updateData.last_name,
+        email: updateData.email,
+        phone: updateData.phone,
+        date_of_birth: updateData.date_of_birth,
+        gender: updateData.gender,
+        marital_status: updateData.marital_status,
+        id_number: updateData.id_number,
+        salary: updateData.salary,
+        // ... add other fields as needed
+      })
+      .eq("id", employeeId);
+
+    if (empError) throw empError;
+
+    // 2. Update Payment Details
+    if (updateData.bank_details) {
+      const { error: payError } = await supabase
+        .from("employee_payment_details")
+        .upsert({
+          employee_id: employeeId,
+          ...updateData.bank_details,
+          updated_at: new Date()
+        }, { onConflict: 'employee_id' });
+      
+      if (payError) throw payError;
+    }
+
+    // 3. Update Active Contract
+    if (updateData.contract_details) {
+      const { error: conError } = await supabase
+        .from("employee_contracts")
+        .update(updateData.contract_details)
+        .eq("employee_id", employeeId)
+        .eq("contract_status", "ACTIVE");
+      
+      if (conError) throw conError;
+    }
+
+    res.status(200).json({ message: "Employee updated successfully" });
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update payment details
+export const updatePaymentDetails = async (req, res) => {
+  const { companyId, employeeId, paymentDetailsId } = req.params;
+  const userId = req.userId;
+  const paymentData = req.body;
+
+  try {
+    const isAuthorized = await checkCompanyAccess(companyId, userId, "EMPLOYEES", "can_write");
+    if (!isAuthorized) return res.status(403).json({ error: "Unauthorized." });
+
+    const { data, error } = await supabase
+      .from("employee_payment_details")
+      .update({ ...paymentData, updated_at: new Date() })
+      .eq("id", paymentDetailsId)
+      .eq("employee_id", employeeId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(200).json(data);
+  } catch (error) {
+    console.error("Update payment details error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Create payment details
+export const createPaymentDetails = async (req, res) => {
+  const { companyId, employeeId } = req.params;
+  const userId = req.userId;
+  const paymentData = req.body;
+
+  try {
+    const isAuthorized = await checkCompanyAccess(companyId, userId, "EMPLOYEES", "can_write");
+    if (!isAuthorized) return res.status(403).json({ error: "Unauthorized." });
+
+    const { data, error } = await supabase
+      .from("employee_payment_details")
+      .insert({ ...paymentData, employee_id: employeeId })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (error) {
+    console.error("Create payment details error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update contract
+export const updateContract = async (req, res) => {
+  const { employeeId, contractId } = req.params;
+  const userId = req.userId;
+  const contractData = req.body;
+
+  try {
+    // You'll need to get companyId from employee
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("company_id")
+      .eq("id", employeeId)
+      .single();
+
+    const isAuthorized = await checkCompanyAccess(employee.company_id, userId, "EMPLOYEES", "can_write");
+    if (!isAuthorized) return res.status(403).json({ error: "Unauthorized." });
+
+    const { data, error } = await supabase
+      .from("employee_contracts")
+      .update(contractData)
+      .eq("id", contractId)
+      .eq("employee_id", employeeId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(200).json(data);
+  } catch (error) {
+    console.error("Update contract error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 // Delete an employee
 export const deleteEmployee = async (req, res) => {
