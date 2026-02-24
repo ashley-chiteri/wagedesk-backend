@@ -143,11 +143,27 @@ const calculateNSSF = (
   };
 };
 
-const calculateSHIF = (grossSalary) => {
+const calculateSHIF = (grossSalary, payrollYear, payrollMonth) => {
+  const payrollMonthIndex = monthNames.indexOf(payrollMonth);
+
+  // SHIF effective from 1 October 2024
+  if (payrollYear < 2024 || (payrollYear === 2024 && payrollMonthIndex < 9)) {
+    // October is index 9
+    return 0; // No SHIF before October 2024
+  }
+
   return Math.round(grossSalary * 0.0275);
 };
 
-const calculateHousingLevy = (grossSalary) => {
+const calculateHousingLevy = (grossSalary, payrollYear, payrollMonth) => {
+  const payrollMonthIndex = monthNames.indexOf(payrollMonth);
+
+  // Housing Levy effective from 19 March 2024
+  // For simplicity, we'll apply from April 2024 onwards
+  if (payrollYear < 2024 || (payrollYear === 2024 && payrollMonthIndex < 3)) {
+    // April is index 3
+    return 0; // No Housing Levy before April 2024
+  }
   return Math.round(grossSalary * 0.015);
 };
 
@@ -162,9 +178,26 @@ const calculateMealBenefit = (mealValue) => {
   return mealValue - MEAL_EXEMPTION_LIMIT;
 };
 
-const calculateHousingBenefit = (houseValue, grossPay) => {
+const calculateHousingBenefit = (
+  houseValue,
+  grossPay,
+  housingType = "ORDINARY",
+) => {
   const fifteenPercentGross = grossPay * 0.15;
+  if (housingType === "FARM") {
+    // Farm housing might have different calculation rules
+    // This is a simplified approach - consult tax expert for exact farm housing rules
+    return Math.max(fifteenPercentGross * 0.8, houseValue * 0.7);
+  }
+
   return Math.max(fifteenPercentGross, houseValue);
+};
+
+const calculateOtherNonCashBenefit = (benefitValue) => {
+  // For other non-cash benefits (not specifically categorized as CAR, MEAL, HOUSING)
+  // The first 5000 is exempt, the rest is taxable
+  if (benefitValue <= 5000) return 0;
+  return benefitValue; // Tax the entire amount if it exceeds the limit
 };
 
 // --- Main Payroll Functions ---
@@ -376,8 +409,7 @@ export const syncPayroll = async (req, res) => {
 
     for (const employee of eligibleEmployees) {
       // Get employee type from contract
-      const employeeType =
-        employee.employee_contracts?.contract_type || "PRIMARY";
+      const employeeType = employee.employee_type || "Primary Employee";
       const isDisabled = employee.has_disability || false;
 
       // Basic salary
@@ -434,37 +466,53 @@ export const syncPayroll = async (req, res) => {
           switch (allowanceCode) {
             case "CAR":
               taxableValue = calculateCarBenefit(allowanceValue);
+              nonCashTaxableBenefits += taxableValue;
+              allowancesDetails.push({
+                code: "CAR",
+                name: allowance.allowance_types.name,
+                value: taxableValue,
+                raw_value: allowanceValue,
+                type: "NON_CASH_CAR",
+                is_taxable: true,
+              });
               break;
             case "MEAL":
               taxableValue = calculateMealBenefit(allowanceValue);
+              nonCashTaxableBenefits += taxableValue;
+              allowancesDetails.push({
+                code: "MEAL",
+                name: allowance.allowance_types.name,
+                value: taxableValue,
+                raw_value: allowanceValue,
+                type: "NON_CASH_MEAL",
+                is_taxable: taxableValue > 0,
+                exempt_amount: taxableValue === 0 ? allowanceValue : 0,
+              });
               break;
             case "HOUSING":
-              // Will calculate after we have gross pay
-              break;
+              allowancesDetails.push({
+                code: "HOUSING",
+                name: allowance.allowance_types.name,
+                raw_value: allowanceValue,
+                housing_type: allowance.metadata?.housing_type || "ORDINARY", // Assume metadata contains housing type
+                type: "NON_CASH_HOUSING",
+                is_taxable: true,
+              });
+              // Don't add to taxable benefits yet
+              continue;
             default:
-              taxableValue = allowanceValue;
+              // Other non-cash benefits
+              taxableValue = calculateOtherNonCashBenefit(allowanceValue);
+              allowancesDetails.push({
+                code: allowanceCode,
+                name: allowance.allowance_types.name,
+                value: taxableValue,
+                raw_value: allowanceValue,
+                type: "NON_CASH_OTHER",
+                is_taxable: taxableValue > 0,
+              });
           }
-
-          if (allowanceCode === "HOUSING") {
-            // Store for later calculation
-            allowancesDetails.push({
-              code: "HOUSING",
-              name: allowance.allowance_types.name,
-              raw_value: allowanceValue,
-              type: "NON_CASH_HOUSING",
-              is_taxable: true,
-            });
-          } else {
-            nonCashTaxableBenefits += taxableValue;
-            allowancesDetails.push({
-              code: allowanceCode,
-              name: allowance.allowance_types.name,
-              value: taxableValue,
-              raw_value: allowanceValue,
-              type: "NON_CASH",
-              is_taxable: true,
-            });
-          }
+          nonCashTaxableBenefits += taxableValue;
         }
       }
 
@@ -482,10 +530,10 @@ export const syncPayroll = async (req, res) => {
         : { tier1: 0, tier2: 0, total: 0 };
 
       const shifDeduction = employee.pays_shif
-        ? calculateSHIF(grossPayForStatutory)
+        ? calculateSHIF(grossPayForStatutory, payrollYear, payrollMonth)
         : 0;
       const housingLevyDeduction = employee.pays_housing_levy
-        ? calculateHousingLevy(grossPayForStatutory)
+        ? calculateHousingLevy(grossPayForStatutory, payrollYear, payrollMonth)
         : 0;
 
       // Process housing benefit now that we have gross pay
@@ -497,6 +545,7 @@ export const syncPayroll = async (req, res) => {
         housingBenefit = calculateHousingBenefit(
           housingAllowance.raw_value,
           grossPayForStatutory,
+          housingAllowance.housing_type || "ORDINARY",
         );
         nonCashTaxableBenefits += housingBenefit;
         housingAllowance.value = housingBenefit;
@@ -616,7 +665,7 @@ export const syncPayroll = async (req, res) => {
         total_deductions: totalDeductions,
         total_statutory_deductions: totalStatutoryDeductions,
         total_other_deductions: postTaxDeductions,
-        gross_pay: totalGrossPay,
+        gross_pay: grossPayForStatutory,
         taxable_income: taxableIncome,
         paye_tax: payeTax,
         nssf_deduction: nssfResult.total,
@@ -1083,45 +1132,44 @@ export const getPayrollRun = async (req, res) => {
       .eq("id", runId)
       .single();
 
-      if (error) throw error;
+    if (error) throw error;
     if (!data) {
       return res.status(404).json({ error: "Payroll run not found." });
     }
 
-      const details = data.payroll_details || [];
-      const totals = {
-        count: details.length,
-        total_gross: details.reduce(
-          (acc, curr) => acc + (parseFloat(curr.gross_pay) || 0),
-          0,
-        ),
-        total_net: details.reduce(
-          (acc, curr) => acc + (parseFloat(curr.net_pay) || 0),
-          0,
-        ),
-        total_paye: details.reduce(
-          (acc, curr) => acc + (parseFloat(curr.paye_tax) || 0),
-          0,
-        ),
-        total_nssf: details.reduce(
-          (acc, curr) => acc + (parseFloat(curr.nssf_deduction) || 0),
-          0,
-        ),
-        total_shif: details.reduce(
-          (acc, curr) => acc + (parseFloat(curr.shif_deduction) || 0),
-          0,
-        ),
-        total_helb: details.reduce(
-          (acc, curr) => acc + (parseFloat(curr.helb_deduction) || 0),
-          0,
-        ),
-        total_housing_levy: details.reduce(
-          (acc, curr) => acc + (parseFloat(curr.housing_levy_deduction) || 0),
-          0,
-        ),
-      };
+    const details = data.payroll_details || [];
+    const totals = {
+      count: details.length,
+      total_gross: details.reduce(
+        (acc, curr) => acc + (parseFloat(curr.gross_pay) || 0),
+        0,
+      ),
+      total_net: details.reduce(
+        (acc, curr) => acc + (parseFloat(curr.net_pay) || 0),
+        0,
+      ),
+      total_paye: details.reduce(
+        (acc, curr) => acc + (parseFloat(curr.paye_tax) || 0),
+        0,
+      ),
+      total_nssf: details.reduce(
+        (acc, curr) => acc + (parseFloat(curr.nssf_deduction) || 0),
+        0,
+      ),
+      total_shif: details.reduce(
+        (acc, curr) => acc + (parseFloat(curr.shif_deduction) || 0),
+        0,
+      ),
+      total_helb: details.reduce(
+        (acc, curr) => acc + (parseFloat(curr.helb_deduction) || 0),
+        0,
+      ),
+      total_housing_levy: details.reduce(
+        (acc, curr) => acc + (parseFloat(curr.housing_levy_deduction) || 0),
+        0,
+      ),
+    };
 
-    
     // Get employee count
     const { count } = await supabase
       .from("payroll_details")
@@ -1131,7 +1179,7 @@ export const getPayrollRun = async (req, res) => {
     res.status(200).json({
       ...data,
       employee_count: details.length,
-      calculated_totals: totals 
+      calculated_totals: totals,
     });
   } catch (error) {
     console.error("Get payroll run error:", error);
@@ -1178,10 +1226,6 @@ export const updatePayrollStatus = async (req, res) => {
           locked_by: userId,
         }),
         ...(status === "UNLOCKED" && { locked_at: null, locked_by: null }),
-        ...(status === "PAID" && {
-          paid_at: new Date().toISOString(),
-          paid_by: userId,
-        }),
       })
       .eq("id", runId)
       .select()
