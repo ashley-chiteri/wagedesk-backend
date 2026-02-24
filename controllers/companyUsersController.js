@@ -1,6 +1,6 @@
 import supabase from "../libs/supabaseAdmin.js"
 import { checkCompanyAccess } from "./employeeController.js";
-import { sendEmailService } from "../services/email.js";
+import { sendEmailService } from "../services/brevo.js";
 import bcrypt from "bcryptjs";
 
 // Generate temporary password

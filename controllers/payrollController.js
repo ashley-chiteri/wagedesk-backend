@@ -104,19 +104,22 @@ const calculateNSSF = (
   pensionablePay,
   payrollMonth,
   payrollYear,
-  employeeType = "PRIMARY",
+  employeeType,
 ) => {
   const payrollMonthIndex = monthNames.indexOf(payrollMonth);
   let tier1_cap, tier2_cap;
   const nssf_rate = 0.06;
 
+  // Consultants don't pay NSSF through payroll
+  if (employeeType === "Consultant") return { tier1: 0, tier2: 0, total: 0 };
+
   // Date-based caps
-  if (payrollYear > 2025 || (payrollYear === 2025 && payrollMonthIndex >= 1)) {
+  if (payrollYear > 2026 || (payrollYear === 2026 && payrollMonthIndex >= 1)) {
+    tier1_cap = 9000;
+    tier2_cap = 108000;
+  } else {
     tier1_cap = 8000;
     tier2_cap = 72000;
-  } else {
-    tier1_cap = 7000;
-    tier2_cap = 36000;
   }
 
   // Adjust caps based on employee type
@@ -1145,7 +1148,7 @@ export const updatePayrollStatus = async (req, res) => {
 
   // Define valid status transitions
   const validTransitions = {
-    DRAFT: ["PREPARED", "CANCELLED"],
+    DRAFT: ["PREPARED", "UNDER_REVIEW", "CANCELLED"],
     PREPARED: ["UNDER_REVIEW", "DRAFT", "CANCELLED"],
     UNDER_REVIEW: ["APPROVED", "REJECTED", "DRAFT"],
     APPROVED: ["LOCKED", "PAID", "DRAFT"],

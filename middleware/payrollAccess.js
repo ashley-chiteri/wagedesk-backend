@@ -30,7 +30,7 @@ export const checkPayrollAccess = async (req, res, next) => {
       .eq("user_id", userId)
       .single();
 
-    if (userError || !companyUser) {
+    if (userError || !companyUser) {``
       return res.status(403).json({ error: "Access denied." });
     }
 
