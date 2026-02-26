@@ -2,7 +2,7 @@
 import supabase from '../libs/supabaseClient.js';
 import { format } from 'date-fns';
 import { generatePayslipPDF } from '../utils/payslipGenerator.js';
-import { sendEmailService, getPayslipEmailTemplate } from '../services/email.js';
+import { sendEmailService, getPayslipEmailTemplate } from '../services/resendService.js';
 
 export const generatePayslipPdf = async (req, res) => {
   const { companyId, payrollDetailId } = req.params;
