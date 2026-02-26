@@ -3,15 +3,13 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-  console.warn("⚠️ Email service not fully configured.");
-}
-
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: false, // use TLS
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
@@ -21,24 +19,34 @@ export const sendEmailService = async ({
   text,
   html,
   company,
+  attachments = [],
 }) => {
   try {
     const info = await transporter.sendMail({
-      from: `${company} <${process.env.EMAIL_USER}>`,
-      to,
+      from: `${company || "WageDesk"} <noreply@wagedesk.co.ke>`,
+      to: Array.isArray(to) ? to.join(",") : to,
       subject,
       text,
       html,
+      attachments: attachments.map((file) => ({
+        filename: file.filename || file.name,
+        content: file.content, // Buffer
+        contentType: file.contentType || "application/pdf",
+      })),
     });
 
     return info;
   } catch (error) {
-    console.error("Email send error:", error.message);
+    console.error("SMTP Email send error:", error);
     throw new Error("Failed to send email");
   }
 };
 
-export const getPayslipEmailTemplate = (employeeName, companyName, payrollPeriod) => {
+export const getPayslipEmailTemplate = (
+  employeeName,
+  companyName,
+  payrollPeriod,
+) => {
   const currentYear = new Date().getFullYear();
 
   return `

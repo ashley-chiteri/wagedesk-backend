@@ -2,7 +2,7 @@
 import supabase from '../libs/supabaseClient.js';
 import { format } from 'date-fns';
 import { generatePayslipPDF } from '../utils/payslipGenerator.js';
-import { sendEmailService, getPayslipEmailTemplate } from '../services/brevo.js';
+import { sendEmailService, getPayslipEmailTemplate } from '../services/email.js';
 
 export const generatePayslipPdf = async (req, res) => {
   const { companyId, payrollDetailId } = req.params;
@@ -159,12 +159,13 @@ export const emailPayslip = async (req, res) => {
       to: employee.email,
       subject: `Your Payslip for ${formattedPeriod} from ${company.business_name}`,
       html: htmlContent,
+      company: company.business_name, 
       attachments: [{
         filename: fileName,
         content: pdfBuffer,
-        //contentType: 'application/pdf',
+        contentType: 'application/pdf',
       }],
-      company: company.business_name,
+      
     });
     
     res.status(200).json({ message: 'Payslip emailed successfully.' });
