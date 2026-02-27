@@ -813,6 +813,7 @@ export const completePayrollRun = async (req, res) => {
 
 export const getPayrollRuns = async (req, res) => {
   const { companyId } = req.params;
+  const { exclude, limit, month, year, sort } = req.query;
 
   try {
     const { data, error } = await supabase

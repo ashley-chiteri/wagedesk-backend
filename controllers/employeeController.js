@@ -175,15 +175,15 @@ export const sendEmployeeEmail = async (req, res) => {
       return res.status(403).json({ error: "Company not found" });
     }
 
+    const currentYear = new Date().getFullYear();
+
     const htmlContent = `
       <div style="font-family: sans-serif; color: #334155; line-height: 1.6;">
-        <h2 style="color: #0f172a;">Sent from ${company.business_name} via WageDesk</h2>
         <div style="border-left: 4px solid #6366f1; padding-left: 16px; margin: 20px 0;">
           ${body}
         </div>
-        <p style="font-size: 12px; color: #94a3b8;">
-          This is an automated message .
-        </p>
+        <hr style="margin-top:24px;border:none;border-top:1px solid #eee;"/>
+      <p style="font-size:11px;color:#999;text-align:center;">Powered by WageDesk · ${currentYear}</p>
       </div>
     `;
     // 3️ Send emails (rate-limited for free tier)

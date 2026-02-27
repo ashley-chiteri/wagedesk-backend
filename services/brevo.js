@@ -62,7 +62,7 @@ export const getPayslipEmailTemplate = (
   companyName,
   payrollPeriod,
 ) => {
-  const currentYear = new Date().getFullYear();
+  
 
   return `
   <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
