@@ -92,7 +92,7 @@ export async function generatePayslipPDF(
 
     const companyName = companyDetails?.business_name || "YOUR COMPANY";
     const employeeFullName =
-      `${employeeData.first_name || ""} ${employeeData.middle_name || ""} ${employeeData.last_name || ""}`.trim();
+      `${employeeData.first_name || ""} ${employeeData.other_names || ""} ${employeeData.last_name || ""}`.trim();
     const personal_relief = 2400.0;
     const gross_tax = detail.paye_tax + personal_relief || 0.0;
     const allowable_deductions =
@@ -232,16 +232,25 @@ export async function generatePayslipPDF(
       margin,
       contentWidth,
     );
-    if (detail.nssf_deduction) {
+
+    // Check if employee is secondary
+    const isSecondary =
+      employeeData.employee_type?.toLowerCase() === "secondary employee";
+    // Always show PEN. Relief but with appropriate value
+    const penReliefValue = isSecondary
+      ? "0.00"
+      : formatCurrency(detail.nssf_deduction);
+    if (detail.nssf_deduction || isSecondary) {
       currentY = drawLineItem(
         doc,
         "PEN. Relief (INCL. NSSF)",
-        formatCurrency(detail.nssf_deduction),
+        penReliefValue,
         currentY,
         margin,
         contentWidth,
       );
     }
+
     if (detail.taxable_income) {
       currentY = drawLineItem(
         doc,
@@ -253,27 +262,39 @@ export async function generatePayslipPDF(
         true,
       );
     }
-    if (allowable_deductions) {
+
+    // Allowable Deductions - zero for secondary
+    const allowableValue = isSecondary
+      ? "0.00"
+      : formatCurrency(allowable_deductions);
+    if (allowable_deductions || isSecondary) {
       currentY = drawLineItem(
         doc,
         "Allowable Deductions",
-        formatCurrency(allowable_deductions),
+        allowableValue,
         currentY,
         margin,
         contentWidth,
       );
     }
-    if (gross_tax) {
+
+    // Gross Tax - for secondary, just show PAYE without personal relief added back
+    const grossTaxValue = isSecondary
+      ? formatCurrency(detail.paye_tax || 0)
+      : formatCurrency(gross_tax);
+    if (gross_tax || isSecondary) {
       currentY = drawLineItem(
         doc,
         "Gross Tax",
-        formatCurrency(gross_tax),
+        grossTaxValue,
         currentY,
         margin,
         contentWidth,
       );
     }
-    if (personal_relief) {
+
+    // Personal Relief - only show for primary employees
+    if (!isSecondary && personal_relief) {
       currentY = drawLineItem(
         doc,
         "Monthly Personal Relief",
@@ -283,7 +304,9 @@ export async function generatePayslipPDF(
         contentWidth,
       );
     }
-    if (detail.insurance_relief) {
+
+    // Insurance Relief - only show for primary employees
+    if (!isSecondary && detail.insurance_relief) {
       currentY = drawLineItem(
         doc,
         "Insurance Relief",
@@ -293,6 +316,7 @@ export async function generatePayslipPDF(
         contentWidth,
       );
     }
+
     currentY += empLineHeight * 1.2;
 
     // --- DEDUCTIONS ---
@@ -365,11 +389,6 @@ export async function generatePayslipPDF(
           : JSON.parse(detail.deductions_details);
 
         deductions.forEach((deduction) => {
-          // Skip the PENSION_NSSF_CAP deduction
-          if (deduction.code === "PENSION_NSSF_CAP") {
-            return; // Skip this deduction
-          }
-
           if (parseFloat(deduction.value) > 0) {
             currentY = drawLineItem(
               doc,
@@ -437,7 +456,7 @@ export async function generatePayslipPDF(
         .font("Helvetica")
         .fontSize(8)
         .text(
-          `${detail.bank_name || "-"} / ${detail.account_number || "-"}`,
+          `${detail.bank_name || "-"} / ${detail.account_name || "-"}`,
           margin + 70,
           currentY,
         );
