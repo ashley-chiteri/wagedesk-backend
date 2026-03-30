@@ -23,9 +23,11 @@ const filterFullyApprovedEmployees = async (payrollData, companyId, runId) => {
     }
 
     // Separate reviewers by level
-    const level1Reviewers = allReviewers?.filter(r => r.reviewer_level === 1) || [];
-    const level2Reviewers = allReviewers?.filter(r => r.reviewer_level === 2) || [];
-    
+    const level1Reviewers =
+      allReviewers?.filter((r) => r.reviewer_level === 1) || [];
+    const level2Reviewers =
+      allReviewers?.filter((r) => r.reviewer_level === 2) || [];
+
     // If no level 1 or 2 reviewers, consider all employees as approved
     if (level1Reviewers.length === 0 && level2Reviewers.length === 0) {
       return payrollData;
@@ -36,16 +38,18 @@ const filterFullyApprovedEmployees = async (payrollData, companyId, runId) => {
 
     if (payrollDetailIds.length === 0) return payrollData;
 
-     // Get all reviews for these payroll details with reviewer level info
+    // Get all reviews for these payroll details with reviewer level info
     const { data: reviews, error: reviewsError } = await supabase
       .from("payroll_reviews")
-      .select(`
+      .select(
+        `
         payroll_detail_id, 
         status,
         company_reviewers (
           reviewer_level
         )
-      `)
+      `,
+      )
       .in("payroll_detail_id", payrollDetailIds);
 
     if (reviewsError) {
@@ -58,49 +62,55 @@ const filterFullyApprovedEmployees = async (payrollData, companyId, runId) => {
     reviews.forEach((review) => {
       const detailId = review.payroll_detail_id;
       const level = review.company_reviewers?.reviewer_level;
-      
+
       if (!reviewsByDetail[detailId]) {
         reviewsByDetail[detailId] = {
           level1: [],
           level2: [],
-          all: []
+          all: [],
         };
       }
-      
+
       // Only consider level 1 and 2 reviewers
       if (level === 1) {
         reviewsByDetail[detailId].level1.push(review.status);
       } else if (level === 2) {
         reviewsByDetail[detailId].level2.push(review.status);
       }
-      
+
       reviewsByDetail[detailId].all.push(review);
     });
 
-     // Filter payroll data to only include employees approved by level 1 and 2
+    // Filter payroll data to only include employees approved by level 1 and 2
     const approvedData = payrollData.filter((detail) => {
       const detailReviews = reviewsByDetail[detail.id];
-      
+
       // If no reviews for this detail, it's not approved
       if (!detailReviews) return false;
 
       // Check for any rejections from level 1 or 2
-      const hasLevel1Rejection = detailReviews.level1.some(status => status === "REJECTED");
-      const hasLevel2Rejection = detailReviews.level2.some(status => status === "REJECTED");
-      
+      const hasLevel1Rejection = detailReviews.level1.some(
+        (status) => status === "REJECTED",
+      );
+      const hasLevel2Rejection = detailReviews.level2.some(
+        (status) => status === "REJECTED",
+      );
+
       if (hasLevel1Rejection || hasLevel2Rejection) return false;
 
       // Check if all level 1 reviewers have approved
-      const allLevel1Approved = level1Reviewers.length > 0 
-        ? detailReviews.level1.length === level1Reviewers.length && 
-          detailReviews.level1.every(status => status === "APPROVED")
-        : true; // If no level 1 reviewers, consider it satisfied
-      
+      const allLevel1Approved =
+        level1Reviewers.length > 0
+          ? detailReviews.level1.length === level1Reviewers.length &&
+            detailReviews.level1.every((status) => status === "APPROVED")
+          : true; // If no level 1 reviewers, consider it satisfied
+
       // Check if all level 2 reviewers have approved
-      const allLevel2Approved = level2Reviewers.length > 0
-        ? detailReviews.level2.length === level2Reviewers.length && 
-          detailReviews.level2.every(status => status === "APPROVED")
-        : true; // If no level 2 reviewers, consider it satisfied
+      const allLevel2Approved =
+        level2Reviewers.length > 0
+          ? detailReviews.level2.length === level2Reviewers.length &&
+            detailReviews.level2.every((status) => status === "APPROVED")
+          : true; // If no level 2 reviewers, consider it satisfied
 
       return allLevel1Approved && allLevel2Approved;
     });
@@ -160,13 +170,15 @@ const fetchAnnualGrossPayData = async (runIds, companyId) => {
   // Get all reviews for these payroll details with reviewer level info
   const { data: reviews, error: reviewsError } = await supabase
     .from("payroll_reviews")
-    .select(`
+    .select(
+      `
       payroll_detail_id, 
       status,
       company_reviewers (
         reviewer_level
       )
-    `)
+    `,
+    )
     .in("payroll_detail_id", payrollDetailIds);
 
   if (reviewsError) {
@@ -181,28 +193,29 @@ const fetchAnnualGrossPayData = async (runIds, companyId) => {
     .eq("company_id", companyId);
 
   // Separate reviewers by level
-  const level1Reviewers = allReviewers?.filter(r => r.reviewer_level === 1) || [];
-  const level2Reviewers = allReviewers?.filter(r => r.reviewer_level === 2) || [];
+  const level1Reviewers =
+    allReviewers?.filter((r) => r.reviewer_level === 1) || [];
+  const level2Reviewers =
+    allReviewers?.filter((r) => r.reviewer_level === 2) || [];
 
   // If no level 1 or 2 reviewers, return all data
   if (level1Reviewers.length === 0 && level2Reviewers.length === 0) {
     return data;
   }
 
-
-   // Group reviews by payroll_detail_id and by level
+  // Group reviews by payroll_detail_id and by level
   const reviewsByDetail = {};
   reviews.forEach((review) => {
     const detailId = review.payroll_detail_id;
     const level = review.company_reviewers?.reviewer_level;
-    
+
     if (!reviewsByDetail[detailId]) {
       reviewsByDetail[detailId] = {
         level1: [],
-        level2: []
+        level2: [],
       };
     }
-    
+
     // Only consider level 1 and 2 reviewers
     if (level === 1) {
       reviewsByDetail[detailId].level1.push(review.status);
@@ -211,30 +224,36 @@ const fetchAnnualGrossPayData = async (runIds, companyId) => {
     }
   });
 
- // Filter data to only include employees approved by level 1 and 2
+  // Filter data to only include employees approved by level 1 and 2
   const approvedData = data.filter((detail) => {
     const detailReviews = reviewsByDetail[detail.id];
-    
+
     // If no reviews for this detail, it's not approved
     if (!detailReviews) return false;
 
     // Check for any rejections from level 1 or 2
-    const hasLevel1Rejection = detailReviews.level1.some(status => status === "REJECTED");
-    const hasLevel2Rejection = detailReviews.level2.some(status => status === "REJECTED");
-    
+    const hasLevel1Rejection = detailReviews.level1.some(
+      (status) => status === "REJECTED",
+    );
+    const hasLevel2Rejection = detailReviews.level2.some(
+      (status) => status === "REJECTED",
+    );
+
     if (hasLevel1Rejection || hasLevel2Rejection) return false;
 
     // Check if all level 1 reviewers have approved
-    const allLevel1Approved = level1Reviewers.length > 0 
-      ? detailReviews.level1.length === level1Reviewers.length && 
-        detailReviews.level1.every(status => status === "APPROVED")
-      : true; // If no level 1 reviewers, consider it satisfied
-    
+    const allLevel1Approved =
+      level1Reviewers.length > 0
+        ? detailReviews.level1.length === level1Reviewers.length &&
+          detailReviews.level1.every((status) => status === "APPROVED")
+        : true; // If no level 1 reviewers, consider it satisfied
+
     // Check if all level 2 reviewers have approved
-    const allLevel2Approved = level2Reviewers.length > 0
-      ? detailReviews.level2.length === level2Reviewers.length && 
-        detailReviews.level2.every(status => status === "APPROVED")
-      : true; // If no level 2 reviewers, consider it satisfied
+    const allLevel2Approved =
+      level2Reviewers.length > 0
+        ? detailReviews.level2.length === level2Reviewers.length &&
+          detailReviews.level2.every((status) => status === "APPROVED")
+        : true; // If no level 2 reviewers, consider it satisfied
 
     return allLevel1Approved && allLevel2Approved;
   });
@@ -269,7 +288,9 @@ const fetchPayrollData = async (companyId, runId) => {
                 marital_status
             ),
             payroll_run:payroll_run_id (
-                payroll_number
+                payroll_number,
+                payroll_month,
+                payroll_year
             )
         `,
     )
@@ -325,7 +346,7 @@ export const getAnnualReportYears = async (req, res) => {
     }
 
     // Fetch unique payroll years where the payroll run is 'Completed'
-   const { data, error } = await supabase
+    const { data, error } = await supabase
       .from("payroll_runs")
       .select("payroll_year")
       .eq("company_id", companyId)
@@ -640,12 +661,14 @@ export const generateReport = async (req, res) => {
       case "kra-sec-b1":
         // Call KRA file generation logic
         const kraCsv = await generateKraSecB1(payrollData);
+        // Add UTF-8 BOM for better Excel compatibility
+        const kraCsvWithBom = "\uFEFF" + kraCsv;
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
           "Content-Disposition",
           getDisposition(`KRA_SEC_B1_${runId}.csv`, download),
         );
-        res.end(Buffer.from(kraCsv, "utf-8"));
+        res.end(Buffer.from(kraCsvWithBom, "utf-8"));
         break;
       case "nssf-return":
         // Call NSSF file generation logic
@@ -694,10 +717,10 @@ export const generateReport = async (req, res) => {
         res.send(helbExcelBuffer);
         break;
       case "bank-payment":
-        const companyDetails = await fetchCompanyDetails(companyId);
+        const bankCompanyDetails = await fetchCompanyDetails(companyId);
         const bankCsv = await generateBankPaymentFile(
           payrollData,
-          companyDetails,
+          bankCompanyDetails,
         );
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
@@ -1124,32 +1147,54 @@ const generateBankPaymentFile = (data, companyDetails) => {
 
   const records = data
     .filter((r) => r.payment_method?.toLowerCase() === "bank")
-    .map((record) => [
-      "", // Additional info 1 (leave blank)
-      `${record.employee.first_name || ""} ${record.employee.middle_name || ""} ${
-        record.employee.last_name || ""
-      }`.trim(), // Beneficiary Name
-      "", // Beneficiary Address (leave blank)
-      "", // BIC/SWIFT Code (leave blank)
-      record.branch_name || "", // Branch
-      record.bank_name || "", // Beneficiary Bank Name
-      "031", // DTB Branch Code (using branch_code from payroll_details)
-      record.account_number || "", // Beneficiary Account
-      formatCurrency(record.net_pay), // Payable Amount
-      "RTGS", // Payment Method (default to RTGS for bank payments)
-      `Payroll Ref ${record.payroll_run?.payroll_number || ""}`, // Additional info 2 (reference)
-      "KES", // Payable Currency (always KES for Kenya)
-      debitAccount, // Debit Account No from company
-      "", // Payment Instructions 1 (leave blank)
-      "", // Mobile service provider Code (leave blank for bank)
-      "", // Bene Mobile Number (leave blank for bank)
-      "", // Execution date
-      "", // Supporting Document Name (leave blank)
-      record.employee?.email || "", // Email
-      "BEN", // Charge Bourned By (BEN = Beneficiary, OUR = Ourselves, SHA = Shared)
-      "SALA", // Remittance Purpose code (SALA = Salary Payment)
-      `Salary payment for ${record.employee?.first_name || ""} ${record.employee?.last_name || ""}`, // Remittance Purpose details
-    ]);
+    .map((record, index) => {
+      // Determine if employee uses DTB bank
+      const bankName = record.bank_name || "";
+      const isDTBBank = bankName.toUpperCase() === "DTB";
+
+      // Generate BIC/SWIFT code: combine bank code + branch code (only for non-DTB banks)
+      let bicSwiftCode = "";
+      if (!isDTBBank) {
+        const bankCode = record.bank_code || "";
+        const branchCode = record.branch_code || "";
+        bicSwiftCode = bankCode && branchCode ? `${bankCode}${branchCode}` : "";
+      }
+
+      // Determine payment method based on bank
+      const paymentMethod = isDTBBank ? "Internal Funds Transfer" : "EFT";
+
+      // For DTB banks, use branch name; for others, use branch code or name
+      const branchInfo = isDTBBank
+        ? record.branch_name || "" // Branch name for DTB
+        : record.branch_name || ""; // Branch name for other banks (can be adjusted)
+      return [
+        (index + 1).toString(), // Additional info 1 - sequential numbering
+        `${record.employee.first_name || ""} ${record.employee.middle_name || ""} ${
+          record.employee.last_name || ""
+        }`.trim(), // Beneficiary Name
+        "Nairobi Kenya", // Beneficiary Address (leave blank)
+        bicSwiftCode, // BIC/SWIFT Code (empty for DTB)
+        branchInfo, // Branch
+        record.bank_name || "", // Beneficiary Bank Name
+        isDTBBank ? branchInfo : "", // DTB Branch Code (only for DTB? Keep empty for NON-DTB)
+        record.account_number || "", // Beneficiary Account
+        formatCurrency(record.net_pay), // Payable Amount
+        paymentMethod, // Payment Method (Internal Funds Transfer for DTB, EFT for others)
+        `Salary ${record.payroll_run?.payroll_month || ""} ${record.payroll_run?.payroll_year || ""}`, // Additional info 2 (reference)
+        "KES", // Payable Currency (always KES for Kenya)
+        debitAccount, // Debit Account No from company
+        `Salary ${record.payroll_run?.payroll_month || ""} ${record.payroll_run?.payroll_year || ""}`, // Payment Instructions 1 (reference)
+        "", // Mobile service provider Code (leave blank for bank)
+        "", // Bene Mobile Number (leave blank for bank)
+        "", // Execution date
+        "", // Supporting Document Name (leave blank)
+        record.employee?.email || "", // Email
+        "", // Charge Bourned By (BEN = Beneficiary, OUR = Ourselves, SHA = Shared)
+        "", // Remittance Purpose code (SALA = Salary Payment)
+        "", // Remittance Purpose details
+      ];
+    });
+
   const columns = [
     "Additional info 1",
     "Beneficiary Name",
@@ -1555,39 +1600,211 @@ const generateGenericExcelReport = async (data, reportType, companyDetails) => {
       }`,
     );
   } else if (reportType === "Allowance Report") {
-    const worksheet = workbook.addWorksheet(reportType);
-    headers = ["Employee No", "Full Name", "Allowance Name", "Amount"];
-    worksheet.addRow(headers);
+    // Collect all unique allowance names across all employees
+    const allAllowanceNames = new Set();
+
     data.forEach((record) => {
-      const allowances = record.allowances_details || [];
-      if (Array.isArray(allowances)) {
-        allowances.forEach((allowance) => {
-          worksheet.addRow([
-            record.employee.employee_number,
-            `${record.employee.first_name} ${record.employee.last_name}`,
-            allowance.name,
-            parseFloat(allowance.value),
-          ]);
-        });
-      }
+      const allowances = Array.isArray(record.allowances_details)
+        ? record.allowances_details
+        : JSON.parse(record.allowances_details || "[]");
+
+      allowances.forEach((allowance) => {
+        if (allowance.name) {
+          allAllowanceNames.add(allowance.name);
+        }
+      });
     });
+
+    const allowanceNames = Array.from(allAllowanceNames).sort();
+
+    // If no allowances found, create a sheet with no data message
+    if (allowanceNames.length === 0) {
+      const emptySheet = workbook.addWorksheet("Allowance Report");
+      emptySheet.addRow(["No allowance data found for this payroll run."]);
+      return await workbook.xlsx.writeBuffer();
+    }
+
+    // Create a separate sheet for each allowance type
+    for (const allowanceName of allowanceNames) {
+      // Clean sheet name (Excel has 31 char limit and can't have certain characters)
+      let sheetName = allowanceName.substring(0, 31);
+      sheetName = sheetName.replace(/[\\/*?:\[\]]/g, "");
+
+      const worksheet = workbook.addWorksheet(sheetName);
+
+      // Add title
+      worksheet.mergeCells("A1:D1");
+      const titleCell = worksheet.getCell("A1");
+      titleCell.value = `${allowanceName} Report`;
+      titleCell.font = { bold: true, size: 14 };
+      titleCell.alignment = { horizontal: "center" };
+
+      // Add headers
+      const headers = ["EMP. No.", "Full Name", "Allowance Amount (KES)"];
+      worksheet.addRow(headers);
+
+      // Style headers
+      worksheet.getRow(2).eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF0F0F0" },
+        };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // Add data rows
+      let totalAmount = 0;
+
+      data.forEach((record) => {
+        const allowances = Array.isArray(record.allowances_details)
+          ? record.allowances_details
+          : JSON.parse(record.allowances_details || "[]");
+
+        const allowance = allowances.find((a) => a.name === allowanceName);
+        const amount = allowance ? parseFloat(allowance.value) : 0;
+
+        if (amount > 0) {
+          totalAmount += amount;
+
+          worksheet.addRow([
+            record.employee?.employee_number || "",
+            `${record.employee?.first_name || ""} ${record.employee?.last_name || ""}`.trim(),
+            amount,
+          ]);
+        }
+      });
+
+      // Add totals row
+      worksheet.addRow([]);
+      const totalRow = worksheet.addRow(["", "TOTAL", totalAmount]);
+      totalRow.getCell(3).font = { bold: true };
+      totalRow.getCell(3).numFmt = "#,##0.00";
+
+      // Format amount column
+      worksheet.getColumn(3).numFmt = "#,##0.00";
+
+      // Adjust column widths
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 30;
+      worksheet.getColumn(3).width = 20;
+
+      // Add footer
+      const lastRow = worksheet.lastRow.number + 2;
+      worksheet.mergeCells(`A${lastRow}:C${lastRow}`);
+      worksheet.getCell(`A${lastRow}`).value =
+        `Printed on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+      worksheet.getCell(`A${lastRow}`).font = { italic: true, size: 9 };
+    }
   } else if (reportType === "Deduction Report") {
-    const worksheet = workbook.addWorksheet(reportType);
-    headers = ["Employee No", "Full Name", "Deduction Name", "Amount"];
-    worksheet.addRow(headers);
+    // Collect all unique deduction names across all employees
+    const allDeductionNames = new Set();
+
     data.forEach((record) => {
-      const deductions = record.deductions_details || [];
-      if (Array.isArray(deductions)) {
-        deductions.forEach((deduction) => {
-          worksheet.addRow([
-            record.employee.employee_number,
-            `${record.employee.first_name} ${record.employee.last_name}`,
-            deduction.name,
-            parseFloat(deduction.value),
-          ]);
-        });
-      }
+      const deductions = Array.isArray(record.deductions_details)
+        ? record.deductions_details
+        : JSON.parse(record.deductions_details || "[]");
+
+      deductions.forEach((deduction) => {
+        if (deduction.name) {
+          allDeductionNames.add(deduction.name);
+        }
+      });
     });
+
+    const deductionNames = Array.from(allDeductionNames).sort();
+
+    // If no deductions found, create a sheet with no data message
+    if (deductionNames.length === 0) {
+      const emptySheet = workbook.addWorksheet("Deduction Report");
+      emptySheet.addRow(["No deduction data found for this payroll run."]);
+      return await workbook.xlsx.writeBuffer();
+    }
+
+    // Create a separate sheet for each deduction type
+    for (const deductionName of deductionNames) {
+      // Clean sheet name (Excel has 31 char limit and can't have certain characters)
+      let sheetName = deductionName.substring(0, 31);
+      sheetName = sheetName.replace(/[\\/*?:\[\]]/g, "");
+
+      const worksheet = workbook.addWorksheet(sheetName);
+
+      // Add title
+      worksheet.mergeCells("A1:D1");
+      const titleCell = worksheet.getCell("A1");
+      titleCell.value = `${deductionName} Report`;
+      titleCell.font = { bold: true, size: 14 };
+      titleCell.alignment = { horizontal: "center" };
+
+      // Add headers
+      const headers = ["EMP. No.", "Full Name", "Deduction Amount (KES)"];
+      worksheet.addRow(headers);
+
+      // Style headers
+      worksheet.getRow(2).eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF0F0F0" },
+        };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // Add data rows
+      let totalAmount = 0;
+
+      data.forEach((record) => {
+        const deductions = Array.isArray(record.deductions_details)
+          ? record.deductions_details
+          : JSON.parse(record.deductions_details || "[]");
+
+        const deduction = deductions.find((d) => d.name === deductionName);
+        const amount = deduction ? parseFloat(deduction.value) : 0;
+
+        if (amount > 0) {
+          totalAmount += amount;
+
+          worksheet.addRow([
+            record.employee?.employee_number || "",
+            `${record.employee?.first_name || ""} ${record.employee?.last_name || ""}`.trim(),
+            amount,
+          ]);
+        }
+      });
+
+      // Add totals row
+      worksheet.addRow([]);
+      const totalRow = worksheet.addRow(["", "TOTAL", totalAmount]);
+      totalRow.getCell(3).font = { bold: true };
+      totalRow.getCell(3).numFmt = "#,##0.00";
+
+      // Format amount column
+      worksheet.getColumn(3).numFmt = "#,##0.00";
+
+      // Adjust column widths
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 30;
+      worksheet.getColumn(3).width = 20;
+
+      // Add footer
+      const lastRow = worksheet.lastRow.number + 2;
+      worksheet.mergeCells(`A${lastRow}:C${lastRow}`);
+      worksheet.getCell(`A${lastRow}`).value =
+        `Printed on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+      worksheet.getCell(`A${lastRow}`).font = { italic: true, size: 9 };
+    }
   }
 
   return await workbook.xlsx.writeBuffer();
